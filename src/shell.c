@@ -3,27 +3,6 @@
 static char* command_history[HISTORY_SIZE];
 static int history_count = 0;
 
-char* read_cmd(char* prompt, FILE* fp) {
-    printf("%s", prompt);
-    char* cmdline = (char*)malloc(sizeof(char) * MAX_LEN);
-    int c, pos = 0;
-
-    while ((c = getc(fp)) != EOF) {
-        if (c == '\n') break;
-        if (pos < MAX_LEN - 1) {
-            cmdline[pos++] = c;
-        }
-    }
-
-    if (c == EOF && pos == 0) {
-        free(cmdline);
-        return NULL;
-    }
-
-    cmdline[pos] = '\0';
-    return cmdline;
-}
-
 char** tokenize(char* cmdline) {
     if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
         return NULL;
@@ -72,7 +51,7 @@ char** tokenize(char* cmdline) {
     return arglist;
 }
 
-void add_history(const char* command) {
+void store_command_history(const char* command) {
     int index = history_count % HISTORY_SIZE;
 
     if (history_count >= HISTORY_SIZE) {
@@ -141,4 +120,92 @@ int handle_builtin(char** arglist) {
     }
 
     return 0;
+}
+
+
+static const char* builtin_commands[] = {
+    "cd", "exit", "help", "jobs", "history", NULL
+};
+
+static char* command_generator(const char* text, int state) {
+    static int builtin_index;
+    static char* path_list;
+    static char* path_save;
+    static DIR* directory;
+    static char* current_dir;
+
+    if (state == 0) {
+        builtin_index = 0;
+
+        if (directory != NULL) {
+            closedir(directory);
+            directory = NULL;
+        }
+
+        free(path_list);
+        path_list = getenv("PATH") ? strdup(getenv("PATH")) : strdup("");
+        path_save = NULL;
+        current_dir = NULL;
+    }
+
+    while (builtin_commands[builtin_index] != NULL) {
+        const char* name = builtin_commands[builtin_index++];
+
+        if (strncmp(name, text, strlen(text)) == 0) {
+            return strdup(name);
+        }
+    }
+
+    while (1) {
+        if (directory == NULL) {
+            char* path_entry = strtok_r(
+                path_save == NULL ? path_list : NULL,
+                ":",
+                &path_save
+            );
+
+            if (path_entry == NULL) {
+                free(path_list);
+                path_list = NULL;
+                return NULL;
+            }
+
+            current_dir = path_entry;
+            directory = opendir(current_dir[0] == '\0' ? "." : current_dir);
+
+            if (directory == NULL) {
+                continue;
+            }
+        }
+
+        struct dirent* entry;
+
+        while ((entry = readdir(directory)) != NULL) {
+            if (strncmp(entry->d_name, text, strlen(text)) != 0) {
+                continue;
+            }
+
+            char full_path[PATH_MAX];
+
+            snprintf(full_path, sizeof(full_path), "%s/%s",
+                     current_dir, entry->d_name);
+
+            if (access(full_path, X_OK) == 0) {
+                return strdup(entry->d_name);
+            }
+        }
+
+        closedir(directory);
+        directory = NULL;
+    }
+}
+
+char** shell_completion(const char* text, int start, int end) {
+    (void)end;
+
+    if (start == 0) {
+        return rl_completion_matches(text, command_generator);
+    }
+
+    return rl_completion_matches(text, rl_filename_completion_function);
 }

@@ -1,10 +1,17 @@
 #include "shell.h"
 
-int main() {
+int main(void) {
     char* cmdline;
     char** arglist;
 
-    while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
+    using_history();
+    rl_attempted_completion_function = shell_completion;
+
+    while ((cmdline = readline(PROMPT)) != NULL) {
+
+        if (cmdline[0] != '\0') {
+            add_history(cmdline);
+        }
 
         if (cmdline[0] == '!') {
             char* endptr;
@@ -32,7 +39,7 @@ int main() {
         }
 
         if (cmdline[0] != '\0') {
-            add_history(cmdline);
+            store_command_history(cmdline);
         }
 
         if ((arglist = tokenize(cmdline)) != NULL) {
