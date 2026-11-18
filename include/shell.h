@@ -22,7 +22,10 @@
 #define PROMPT "FCIT> "
 
 char** tokenize(char* cmdline);
-int execute(char** arglist);
+int execute(char** arglist, int background);
+void add_job(pid_t pid);
+void reap_jobs(void);
+void print_jobs(void);
 int handle_builtin(char** arglist);
 void store_command_history(const char* command);
 void print_history(void);

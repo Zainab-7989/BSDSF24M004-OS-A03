@@ -47,7 +47,8 @@ char** tokenize(char* cmdline) {
             break;
         }
 
-        if (*cp == '<' || *cp == '>' || *cp == '|') {
+        if (*cp == '<' || *cp == '>' || *cp == '|' ||
+    *cp == ';' || *cp == '&')  {
             arglist[argnum][0] = *cp;
             arglist[argnum][1] = '\0';
             argnum++;
@@ -60,8 +61,9 @@ char** tokenize(char* cmdline) {
 
         while (*cp != '\0') {
             if (quote == '\0' &&
-                (*cp == ' ' || *cp == '\t' ||
-                 *cp == '<' || *cp == '>' || *cp == '|')) {
+    (*cp == ' ' || *cp == '\t' ||
+     *cp == '<' || *cp == '>' || *cp == '|' ||
+     *cp == ';' || *cp == '&')) {
                 break;
             }
 
@@ -173,9 +175,9 @@ int handle_builtin(char** arglist) {
     }
 
     if (strcmp(arglist[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
-        return 1;
-    }
+    print_jobs();
+    return 1;
+}
 
     if (strcmp(arglist[0], "history") == 0) {
         print_history();
@@ -271,4 +273,53 @@ char** shell_completion(const char* text, int start, int end) {
     }
 
     return rl_completion_matches(text, rl_filename_completion_function);
+}
+
+#define MAX_JOBS 100
+
+static pid_t background_jobs[MAX_JOBS];
+static int job_count = 0;
+
+void add_job(pid_t pid) {
+    if (job_count < MAX_JOBS) {
+        background_jobs[job_count++] = pid;
+        printf("[Background] PID: %d\n", pid);
+    } else {
+        fprintf(stderr, "Job list is full.\n");
+    }
+}
+
+void reap_jobs(void) {
+    int status;
+    pid_t pid;
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        for (int i = 0; i < job_count; i++) {
+            if (background_jobs[i] == pid) {
+                printf("[Completed] PID: %d\n", pid);
+
+                for (int j = i; j < job_count - 1; j++) {
+                    background_jobs[j] = background_jobs[j + 1];
+                }
+
+                job_count--;
+                break;
+            }
+        }
+    }
+}
+
+void print_jobs(void) {
+    reap_jobs();
+
+    if (job_count == 0) {
+        printf("No background jobs.\n");
+        return;
+    }
+
+    printf("Background Jobs:\n");
+
+    for (int i = 0; i < job_count; i++) {
+        printf("PID: %d\n", background_jobs[i]);
+    }
 }

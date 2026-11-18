@@ -1,3 +1,4 @@
+
 #include "shell.h"
 
 static int has_io_operator(char** arglist) {
@@ -8,8 +9,38 @@ static int has_io_operator(char** arglist) {
             return 1;
         }
     }
-
     return 0;
+}
+
+static void free_arguments(char** arglist) {
+    if (arglist == NULL) return;
+
+    for (int i = 0; arglist[i] != NULL; i++) {
+        free(arglist[i]);
+    }
+
+    free(arglist);
+}
+
+static void process_command(char** tokens, int background) {
+    if (tokens == NULL || tokens[0] == NULL) return;
+
+    if (!background && !has_io_operator(tokens) &&
+        handle_builtin(tokens)) {
+        return;
+    }
+
+    if (background && !has_io_operator(tokens) &&
+        (strcmp(tokens[0], "cd") == 0 ||
+         strcmp(tokens[0], "exit") == 0 ||
+         strcmp(tokens[0], "jobs") == 0 ||
+         strcmp(tokens[0], "history") == 0 ||
+         strcmp(tokens[0], "help") == 0)) {
+        fprintf(stderr, "This built-in cannot run in the background.\n");
+        return;
+    }
+
+    execute(tokens, background);
 }
 
 int main(void) {
@@ -19,7 +50,12 @@ int main(void) {
     using_history();
     rl_attempted_completion_function = shell_completion;
 
-    while ((cmdline = readline(PROMPT)) != NULL) {
+    while (1) {
+        reap_jobs();
+
+        cmdline = readline(PROMPT);
+
+        if (cmdline == NULL) break;
 
         if (cmdline[0] != '\0') {
             add_history(cmdline);
@@ -57,23 +93,45 @@ int main(void) {
         arglist = tokenize(cmdline);
 
         if (arglist != NULL) {
-            if (has_io_operator(arglist)) {
-                execute(arglist);
-            }
-            else if (!handle_builtin(arglist)) {
-                execute(arglist);
+            char* segment[MAXARGS + 1];
+            int count = 0;
+            int background = 0;
+
+            for (int i = 0; ; i++) {
+                if (arglist[i] == NULL ||
+                    strcmp(arglist[i], ";") == 0 ||
+                    strcmp(arglist[i], "&") == 0) {
+
+                    if (arglist[i] != NULL &&
+                        strcmp(arglist[i], "&") == 0) {
+                        background = 1;
+                    }
+
+                    segment[count] = NULL;
+
+                    if (count > 0) {
+                        process_command(segment, background);
+                    }
+
+                    count = 0;
+                    background = 0;
+
+                    if (arglist[i] == NULL) break;
+                }
+                else {
+                    if (count < MAXARGS) {
+                        segment[count++] = arglist[i];
+                    }
+                }
             }
 
-            for (int i = 0; arglist[i] != NULL; i++) {
-                free(arglist[i]);
-            }
-
-            free(arglist);
+            free_arguments(arglist);
         }
 
         free(cmdline);
     }
 
+    reap_jobs();
     printf("\nShell exited.\n");
     return 0;
 }

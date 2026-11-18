@@ -1,7 +1,8 @@
+
 #include "shell.h"
 #include <fcntl.h>
 
-int execute(char* arglist[]) {
+int execute(char* arglist[], int background) {
     char* commands[MAXARGS][MAXARGS + 1];
     char* input_files[MAXARGS];
     char* output_files[MAXARGS];
@@ -31,7 +32,6 @@ int execute(char* arglist[]) {
         }
         else if (strcmp(arglist[i], "<") == 0 ||
                  strcmp(arglist[i], ">") == 0) {
-
             int is_input = strcmp(arglist[i], "<") == 0;
 
             if (arglist[i + 1] == NULL ||
@@ -47,7 +47,6 @@ int execute(char* arglist[]) {
                     fprintf(stderr, "Multiple input redirections.\n");
                     return -1;
                 }
-
                 input_files[command_count - 1] = arglist[i + 1];
             }
             else {
@@ -55,7 +54,6 @@ int execute(char* arglist[]) {
                     fprintf(stderr, "Multiple output redirections.\n");
                     return -1;
                 }
-
                 output_files[command_count - 1] = arglist[i + 1];
             }
 
@@ -171,8 +169,15 @@ int execute(char* arglist[]) {
         close(pipe_fds[i][1]);
     }
 
-    for (int i = 0; i < command_count; i++) {
-        waitpid(pids[i], NULL, 0);
+    if (background) {
+        for (int i = 0; i < command_count; i++) {
+            add_job(pids[i]);
+        }
+    }
+    else {
+        for (int i = 0; i < command_count; i++) {
+            waitpid(pids[i], NULL, 0);
+        }
     }
 
     return 0;
