@@ -303,6 +303,7 @@ int handle_builtin(char** arglist) {
         printf("  help              Display this help message\n");
         printf("  jobs              Display job control status\n");
         printf("  history           Display command history\n");
+        printf("  set               Display shell variables\n");
         printf("  !n                Execute command number n\n");
         return 1;
     }
@@ -322,7 +323,7 @@ int handle_builtin(char** arglist) {
 
 
 static const char* builtin_commands[] = {
-    "cd", "exit", "help", "jobs", "history", NULL
+    "cd", "exit", "help", "jobs", "history", "set", NULL
 };
 
 static char* command_generator(const char* text, int state) {
