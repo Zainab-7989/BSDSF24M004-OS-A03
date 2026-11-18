@@ -4,45 +4,108 @@ static char* command_history[HISTORY_SIZE];
 static int history_count = 0;
 
 char** tokenize(char* cmdline) {
-    if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
+    if (cmdline == NULL || cmdline[0] == '\0') {
         return NULL;
     }
 
-    char** arglist = (char**)malloc(sizeof(char*) * (MAXARGS + 1));
+    char** arglist = calloc(MAXARGS + 1, sizeof(char*));
+
+    if (arglist == NULL) {
+        perror("calloc");
+        return NULL;
+    }
 
     for (int i = 0; i < MAXARGS + 1; i++) {
-        arglist[i] = (char*)malloc(sizeof(char) * ARGLEN);
-        bzero(arglist[i], ARGLEN);
+        arglist[i] = calloc(ARGLEN, sizeof(char));
+
+        if (arglist[i] == NULL) {
+            perror("calloc");
+
+            for (int j = 0; j < i; j++) {
+                free(arglist[j]);
+            }
+
+            free(arglist);
+            return NULL;
+        }
     }
 
     char* cp = cmdline;
-    char* start;
-    int len;
     int argnum = 0;
 
-    while (*cp != '\0' && argnum < MAXARGS) {
-        while (*cp == ' ' || *cp == '\t') cp++;
-
-        if (*cp == '\0') break;
-
-        start = cp;
-        len = 1;
-
-        while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t')) {
-            len++;
+    while (*cp != '\0') {
+        while (*cp == ' ' || *cp == '\t') {
+            cp++;
         }
 
-        if (len >= ARGLEN) len = ARGLEN - 1;
+        if (*cp == '\0') {
+            break;
+        }
 
-        strncpy(arglist[argnum], start, len);
-        arglist[argnum][len] = '\0';
-        argnum++;
+        if (argnum >= MAXARGS) {
+            fprintf(stderr, "Too many arguments.\n");
+            break;
+        }
+
+        if (*cp == '<' || *cp == '>' || *cp == '|') {
+            arglist[argnum][0] = *cp;
+            arglist[argnum][1] = '\0';
+            argnum++;
+            cp++;
+            continue;
+        }
+
+        int len = 0;
+        char quote = '\0';
+
+        while (*cp != '\0') {
+            if (quote == '\0' &&
+                (*cp == ' ' || *cp == '\t' ||
+                 *cp == '<' || *cp == '>' || *cp == '|')) {
+                break;
+            }
+
+            if ((*cp == '"' || *cp == '\'') && quote == '\0') {
+                quote = *cp;
+                cp++;
+                continue;
+            }
+
+            if (*cp == quote && quote != '\0') {
+                quote = '\0';
+                cp++;
+                continue;
+            }
+
+            if (len < ARGLEN - 1) {
+                arglist[argnum][len++] = *cp;
+            }
+
+            cp++;
+        }
+
+        if (quote != '\0') {
+            fprintf(stderr, "Unclosed quotation mark.\n");
+
+            for (int i = 0; i < MAXARGS + 1; i++) {
+                free(arglist[i]);
+            }
+
+            free(arglist);
+            return NULL;
+        }
+
+        if (len > 0) {
+            arglist[argnum][len] = '\0';
+            argnum++;
+        }
     }
 
     if (argnum == 0) {
         for (int i = 0; i < MAXARGS + 1; i++) {
             free(arglist[i]);
         }
+
         free(arglist);
         return NULL;
     }

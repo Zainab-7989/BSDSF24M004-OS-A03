@@ -1,5 +1,17 @@
 #include "shell.h"
 
+static int has_io_operator(char** arglist) {
+    for (int i = 0; arglist[i] != NULL; i++) {
+        if (strcmp(arglist[i], "<") == 0 ||
+            strcmp(arglist[i], ">") == 0 ||
+            strcmp(arglist[i], "|") == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int main(void) {
     char* cmdline;
     char** arglist;
@@ -42,8 +54,13 @@ int main(void) {
             store_command_history(cmdline);
         }
 
-        if ((arglist = tokenize(cmdline)) != NULL) {
-            if (!handle_builtin(arglist)) {
+        arglist = tokenize(cmdline);
+
+        if (arglist != NULL) {
+            if (has_io_operator(arglist)) {
+                execute(arglist);
+            }
+            else if (!handle_builtin(arglist)) {
                 execute(arglist);
             }
 

@@ -16,8 +16,8 @@
 #include <readline/history.h>
 
 #define MAX_LEN 512
-#define MAXARGS 10
-#define ARGLEN 30
+#define MAXARGS 64
+#define ARGLEN 256
 #define HISTORY_SIZE 20
 #define PROMPT "FCIT> "
 
