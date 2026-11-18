@@ -1,6 +1,154 @@
 
 #include "shell.h"
 
+
+static int has_io_operator(char** arglist);
+static char* trim_line(char* line) {
+    while (*line == ' ' || *line == '\t') {
+        line++;
+    }
+
+    size_t len = strlen(line);
+
+    while (len > 0 &&
+           (line[len - 1] == ' ' ||
+            line[len - 1] == '\t' ||
+            line[len - 1] == '\n' ||
+            line[len - 1] == '\r')) {
+        line[--len] = '\0';
+    }
+
+    return line;
+}
+
+static int run_if_command(char* line) {
+    char** tokens = tokenize(line);
+
+    if (tokens == NULL) {
+        return 0;
+    }
+
+    int status;
+
+    if (!has_io_operator(tokens) && handle_builtin(tokens)) {
+        status = 0;
+    }
+    else {
+        status = execute(tokens, 0);
+    }
+
+    for (int i = 0; tokens[i] != NULL; i++) {
+        free(tokens[i]);
+    }
+
+    free(tokens);
+
+    return status;
+}
+
+static void free_block(char** lines, int count) {
+    for (int i = 0; i < count; i++) {
+        free(lines[i]);
+    }
+}
+
+static void handle_if_block(char* first_line) {
+    char* condition = trim_line(first_line + 2);
+
+    char* then_lines[MAXARGS];
+    char* else_lines[MAXARGS];
+
+    int then_count = 0;
+    int else_count = 0;
+    int in_else = 0;
+    int valid = 0;
+
+    char* line;
+
+    while (1) {
+        line = readline("if> ");
+
+        if (line == NULL) {
+            break;
+        }
+
+        char* trimmed = trim_line(line);
+
+        if (strcmp(trimmed, "then") == 0) {
+            free(line);
+            break;
+        }
+
+        fprintf(stderr, "Expected 'then'.\n");
+        free(line);
+        free_block(then_lines, then_count);
+        free_block(else_lines, else_count);
+        return;
+    }
+
+    while (1) {
+        line = readline("if> ");
+
+        if (line == NULL) {
+            break;
+        }
+
+        char* trimmed = trim_line(line);
+
+        if (strcmp(trimmed, "else") == 0) {
+            in_else = 1;
+            free(line);
+            continue;
+        }
+
+        if (strcmp(trimmed, "fi") == 0) {
+            valid = 1;
+            free(line);
+            break;
+        }
+
+        if (trimmed[0] != '\0') {
+            if (!in_else && then_count < MAXARGS) {
+                then_lines[then_count++] = strdup(trimmed);
+            }
+            else if (in_else && else_count < MAXARGS) {
+                else_lines[else_count++] = strdup(trimmed);
+            }
+            else {
+                fprintf(stderr, "Too many commands in if block.\n");
+                free(line);
+                break;
+            }
+        }
+
+        free(line);
+    }
+
+    if (!valid) {
+        fprintf(stderr, "Missing 'fi'. If block cancelled.\n");
+        free_block(then_lines, then_count);
+        free_block(else_lines, else_count);
+        return;
+    }
+
+    int status = run_if_command(condition);
+
+    if (status == 0) {
+        for (int i = 0; i < then_count; i++) {
+            run_if_command(then_lines[i]);
+        }
+    }
+    else {
+        for (int i = 0; i < else_count; i++) {
+            run_if_command(else_lines[i]);
+        }
+    }
+
+    free_block(then_lines, then_count);
+    free_block(else_lines, else_count);
+}
+
+
 static int has_io_operator(char** arglist) {
     for (int i = 0; arglist[i] != NULL; i++) {
         if (strcmp(arglist[i], "<") == 0 ||
@@ -60,6 +208,14 @@ int main(void) {
         if (cmdline[0] != '\0') {
             add_history(cmdline);
         }
+
+        char* trimmed_cmd = trim_line(cmdline);
+
+if (strncmp(trimmed_cmd, "if ", 3) == 0) {
+    handle_if_block(trimmed_cmd);
+    free(cmdline);
+    continue;
+}
 
         if (cmdline[0] == '!') {
             char* endptr;

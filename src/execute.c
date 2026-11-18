@@ -175,10 +175,26 @@ int execute(char* arglist[], int background) {
         }
     }
     else {
-        for (int i = 0; i < command_count; i++) {
-            waitpid(pids[i], NULL, 0);
+    int status = 0;
+    int final_status = 0;
+
+    for (int i = 0; i < command_count; i++) {
+        if (waitpid(pids[i], &status, 0) == -1) {
+            perror("waitpid");
+            final_status = 1;
+        }
+        else if (i == command_count - 1) {
+            if (WIFEXITED(status)) {
+                final_status = WEXITSTATUS(status);
+            }
+            else {
+                final_status = 1;
+            }
         }
     }
 
-    return 0;
+    return final_status;
+}
+
+return 0;
 }
