@@ -27,6 +27,15 @@ static int run_if_command(char* line) {
     if (tokens == NULL) {
         return 0;
     }
+        if (handle_variable_assignment(tokens)) {
+        for (int i = 0; tokens[i] != NULL; i++) {
+            free(tokens[i]);
+        }
+        free(tokens);
+        return 0;
+    }
+
+    expand_variables(tokens);
 
     int status;
 
@@ -170,8 +179,15 @@ static void free_arguments(char** arglist) {
     free(arglist);
 }
 
+
 static void process_command(char** tokens, int background) {
     if (tokens == NULL || tokens[0] == NULL) return;
+
+    if (handle_variable_assignment(tokens)) {
+        return;
+    }
+
+    expand_variables(tokens);
 
     if (!background && !has_io_operator(tokens) &&
         handle_builtin(tokens)) {
@@ -183,7 +199,8 @@ static void process_command(char** tokens, int background) {
          strcmp(tokens[0], "exit") == 0 ||
          strcmp(tokens[0], "jobs") == 0 ||
          strcmp(tokens[0], "history") == 0 ||
-         strcmp(tokens[0], "help") == 0)) {
+         strcmp(tokens[0], "help") == 0 ||
+         strcmp(tokens[0], "set") == 0)) {
         fprintf(stderr, "This built-in cannot run in the background.\n");
         return;
     }

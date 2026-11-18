@@ -3,6 +3,135 @@
 static char* command_history[HISTORY_SIZE];
 static int history_count = 0;
 
+
+typedef struct ShellVariable {
+    char* name;
+    char* value;
+    struct ShellVariable* next;
+} ShellVariable;
+
+static ShellVariable* variables = NULL;
+
+static int valid_variable_name(const char* name, size_t length) {
+    if (length == 0) return 0;
+
+    if (!((name[0] >= 'A' && name[0] <= 'Z') ||
+          (name[0] >= 'a' && name[0] <= 'z') ||
+          name[0] == '_')) {
+        return 0;
+    }
+
+    for (size_t i = 1; i < length; i++) {
+        if (!((name[i] >= 'A' && name[i] <= 'Z') ||
+              (name[i] >= 'a' && name[i] <= 'z') ||
+              (name[i] >= '0' && name[i] <= '9') ||
+              name[i] == '_')) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static const char* get_shell_variable(const char* name) {
+    ShellVariable* current = variables;
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current->value;
+        }
+        current = current->next;
+    }
+
+    return "";
+}
+
+int handle_variable_assignment(char** arglist) {
+    if (arglist == NULL || arglist[0] == NULL) return 0;
+
+    char* equal = strchr(arglist[0], '=');
+
+    if (equal == NULL) return 0;
+
+    size_t name_length = (size_t)(equal - arglist[0]);
+
+    if (!valid_variable_name(arglist[0], name_length)) {
+        return 0;
+    }
+
+    if (arglist[1] != NULL) {
+        fprintf(stderr, "Variable assignment must be a single argument.\n");
+        return 1;
+    }
+
+    char* name = strndup(arglist[0], name_length);
+    char* value = strdup(equal + 1);
+
+    if (name == NULL || value == NULL) {
+        perror("strdup");
+        free(name);
+        free(value);
+        return 1;
+    }
+
+    ShellVariable* current = variables;
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            free(current->value);
+            current->value = value;
+            free(name);
+            return 1;
+        }
+        current = current->next;
+    }
+
+    ShellVariable* new_variable = malloc(sizeof(ShellVariable));
+
+    if (new_variable == NULL) {
+        perror("malloc");
+        free(name);
+        free(value);
+        return 1;
+    }
+
+    new_variable->name = name;
+    new_variable->value = value;
+    new_variable->next = variables;
+    variables = new_variable;
+
+    return 1;
+}
+
+void print_shell_variables(void) {
+    ShellVariable* current = variables;
+
+    while (current != NULL) {
+        printf("%s=%s\n", current->name, current->value);
+        current = current->next;
+    }
+}
+
+void expand_variables(char** arglist) {
+    if (arglist == NULL) return;
+
+    for (int i = 0; arglist[i] != NULL; i++) {
+        if (arglist[i][0] == '$' && arglist[i][1] != '\0') {
+            const char* value = get_shell_variable(arglist[i] + 1);
+            char* expanded = strdup(value);
+
+            if (expanded == NULL) {
+                perror("strdup");
+                continue;
+            }
+
+            free(arglist[i]);
+            arglist[i] = expanded;
+        }
+    }
+}
+
+
 char** tokenize(char* cmdline) {
     if (cmdline == NULL || cmdline[0] == '\0') {
         return NULL;
@@ -148,6 +277,10 @@ char* get_history_command(int number) {
 }
 
 int handle_builtin(char** arglist) {
+        if (strcmp(arglist[0], "set") == 0) {
+        print_shell_variables();
+        return 1;
+    }
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Shell exited.\n");
         exit(0);

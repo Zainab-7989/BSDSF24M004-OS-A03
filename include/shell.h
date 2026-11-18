@@ -1,3 +1,4 @@
+
 #ifndef SHELL_H
 #define SHELL_H
 
@@ -31,5 +32,9 @@ void store_command_history(const char* command);
 void print_history(void);
 char* get_history_command(int number);
 char** shell_completion(const char* text, int start, int end);
+
+int handle_variable_assignment(char** arglist);
+void expand_variables(char** arglist);
+void print_shell_variables(void);
 
 #endif
